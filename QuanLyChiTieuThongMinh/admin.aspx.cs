@@ -31,9 +31,40 @@ namespace QuanLyChiTieuThongMinh
 
                 SetActivePanel("dashboard");
             }
+            else
+            {
+                if (ViewState["ActivePanel"] != null)
+                {
+                    ApplyPanelVisibility(ViewState["ActivePanel"].ToString());
+                }
+            }
+        }
+
+        public string NormalizeIcon(object iconObj, object categoryNameObj)
+        {
+            string icon = iconObj != null ? iconObj.ToString().Trim().ToLower() : "";
+            string name = categoryNameObj != null ? categoryNameObj.ToString().Trim().ToLower() : "";
+
+            if (icon.Contains("dollar") || name.Contains("đầu tư") || name.Contains("thưởng")) return "attach_money";
+            if (icon.Contains("open") || name.Contains("học")) return "school";
+            if (icon.Contains("car") || name.Contains("di chuyển")) return "directions_car";
+            if (icon.Contains("bag") || name.Contains("mua sắm")) return "shopping_bag";
+            if (icon.Contains("utensils") || name.Contains("ăn uống")) return "restaurant";
+            if (icon.Contains("payment") || name.Contains("lương")) return "payments";
+
+            return string.IsNullOrEmpty(icon) ? "category" : icon;
         }
 
         void SetActivePanel(string panel)
+        {
+            ViewState["ActivePanel"] = panel;
+            ApplyPanelVisibility(panel);
+
+            // Ép xóa sạch giá trị tìm kiếm khi chuyển đổi sang bất kỳ tab nào
+            ScriptManager.RegisterStartupScript(this, GetType(), "ResetSearchScript", "resetFilterBox();", true);
+        }
+
+        void ApplyPanelVisibility(string panel)
         {
             pDashboard.CssClass = "section";
             pUsers.CssClass = "section";
@@ -41,17 +72,11 @@ namespace QuanLyChiTieuThongMinh
             pReports.CssClass = "section";
             pActivity.CssClass = "section";
 
-            btnDash.CssClass = "nav-btn";
-            btnUsers.CssClass = "nav-btn";
-            btnCategories.CssClass = "nav-btn";
-            btnReports.CssClass = "nav-btn";
-            btnActivity.CssClass = "nav-btn";
-
-            if (panel == "dashboard") { pDashboard.CssClass = "section active"; btnDash.CssClass = "nav-btn active"; }
-            if (panel == "users") { pUsers.CssClass = "section active"; btnUsers.CssClass = "nav-btn active"; }
-            if (panel == "categories") { pCategories.CssClass = "section active"; btnCategories.CssClass = "nav-btn active"; }
-            if (panel == "reports") { pReports.CssClass = "section active"; btnReports.CssClass = "nav-btn active"; }
-            if (panel == "activity") { pActivity.CssClass = "section active"; btnActivity.CssClass = "nav-btn active"; }
+            if (panel == "dashboard") pDashboard.CssClass = "section active";
+            if (panel == "users") pUsers.CssClass = "section active";
+            if (panel == "categories") pCategories.CssClass = "section active";
+            if (panel == "reports") pReports.CssClass = "section active";
+            if (panel == "activity") pActivity.CssClass = "section active";
         }
 
         protected void ShowDashboard(object sender, EventArgs e) { LoadDashboard(); SetActivePanel("dashboard"); }
@@ -65,7 +90,6 @@ namespace QuanLyChiTieuThongMinh
             try
             {
                 Open();
-
                 lblTotalUsers.Text = Scalar("SELECT COUNT(*) FROM NguoiDung").ToString();
                 lblTotalTransactions.Text = Scalar("SELECT COUNT(*) FROM GiaoDich").ToString();
 
@@ -86,12 +110,7 @@ namespace QuanLyChiTieuThongMinh
             try
             {
                 Open();
-
-                string sql = @"
-                SELECT MaND, TenDangNhap, HoTen, Email, SoDienThoai, VaiTro, TrangThai, NgayTao
-                FROM NguoiDung
-                ORDER BY MaND DESC";
-
+                string sql = "SELECT MaND, TenDangNhap, HoTen, Email, SoDienThoai, VaiTro, TrangThai, NgayTao FROM NguoiDung ORDER BY MaND DESC";
                 Bind(sql, rpUsers);
             }
             finally { Close(); }
@@ -102,13 +121,12 @@ namespace QuanLyChiTieuThongMinh
             try
             {
                 Open();
-
                 string sql = @"
                 SELECT 
                     MaDM,
                     TenDanhMuc,
                     Loai,
-                    ISNULL(Icon,'circle-dollar-sign') AS Icon,
+                    ISNULL(Icon,'category') AS Icon,
                     MoTa,
                     TrangThai
                 FROM DanhMuc
@@ -134,7 +152,6 @@ namespace QuanLyChiTieuThongMinh
             try
             {
                 Open();
-
                 string sql = @"
                 SELECT TOP 50 
                     ls.HanhDong,
@@ -156,14 +173,13 @@ namespace QuanLyChiTieuThongMinh
             {
                 Open();
 
-                if (hdUserID.Value == "")
+                if (string.IsNullOrEmpty(hdUserID.Value))
                 {
                     string checkSql = "SELECT COUNT(*) FROM NguoiDung WHERE Email=@Email";
                     SqlCommand check = new SqlCommand(checkSql, db.conn);
                     check.Parameters.AddWithValue("@Email", txtEmail.Text.Trim());
 
                     int exists = Convert.ToInt32(check.ExecuteScalar());
-
                     if (exists > 0)
                     {
                         Alert("Email đã tồn tại");
@@ -171,26 +187,8 @@ namespace QuanLyChiTieuThongMinh
                     }
 
                     string sql = @"
-                    INSERT INTO NguoiDung
-                    (
-                        TenDangNhap,
-                        MatKhau,
-                        Email,
-                        SoDienThoai,
-                        HoTen,
-                        VaiTro,
-                        TrangThai
-                    )
-                    VALUES
-                    (
-                        @TenDangNhap,
-                        @MatKhau,
-                        @Email,
-                        @SoDienThoai,
-                        @HoTen,
-                        @VaiTro,
-                        @TrangThai
-                    )";
+                    INSERT INTO NguoiDung (TenDangNhap, MatKhau, Email, SoDienThoai, HoTen, VaiTro, TrangThai)
+                    VALUES (@TenDangNhap, @MatKhau, @Email, @SoDienThoai, @HoTen, @VaiTro, @TrangThai)";
 
                     SqlCommand cmd = new SqlCommand(sql, db.conn);
                     AddUserParams(cmd);
@@ -202,18 +200,11 @@ namespace QuanLyChiTieuThongMinh
                 {
                     string sql = @"
                     UPDATE NguoiDung
-                    SET
-                        TenDangNhap=@TenDangNhap,
-                        Email=@Email,
-                        SoDienThoai=@SoDienThoai,
-                        HoTen=@HoTen,
-                        VaiTro=@VaiTro,
-                        TrangThai=@TrangThai"
-                        + (txtPassword.Text.Trim() != "" ? ", MatKhau=@MatKhau " : " ")
+                    SET TenDangNhap=@TenDangNhap, Email=@Email, SoDienThoai=@SoDienThoai, HoTen=@HoTen, VaiTro=@VaiTro, TrangThai=@TrangThai"
+                    + (txtPassword.Text.Trim() != "" ? ", MatKhau=@MatKhau " : " ")
                     + "WHERE MaND=@MaND";
 
                     SqlCommand cmd = new SqlCommand(sql, db.conn);
-
                     cmd.Parameters.AddWithValue("@MaND", hdUserID.Value);
                     cmd.Parameters.AddWithValue("@TenDangNhap", txtUserName.Text.Trim());
                     cmd.Parameters.AddWithValue("@Email", txtEmail.Text.Trim());
@@ -228,7 +219,6 @@ namespace QuanLyChiTieuThongMinh
                     }
 
                     cmd.ExecuteNonQuery();
-
                     AddLog("Admin cập nhật người dùng: " + txtEmail.Text.Trim());
                 }
 
@@ -256,14 +246,11 @@ namespace QuanLyChiTieuThongMinh
             try
             {
                 Open();
-
                 string sql = "SELECT * FROM NguoiDung WHERE MaND=@ID";
-
                 SqlCommand cmd = new SqlCommand(sql, db.conn);
                 cmd.Parameters.AddWithValue("@ID", e.CommandArgument.ToString());
 
                 SqlDataReader rd = cmd.ExecuteReader();
-
                 if (rd.Read())
                 {
                     hdUserID.Value = rd["MaND"].ToString();
@@ -275,7 +262,6 @@ namespace QuanLyChiTieuThongMinh
                     ddlUserStatus.SelectedValue = rd["TrangThai"].ToString();
                     txtPassword.Text = "";
                 }
-
                 rd.Close();
                 SetActivePanel("users");
             }
@@ -287,7 +273,6 @@ namespace QuanLyChiTieuThongMinh
             try
             {
                 Open();
-
                 string sql = @"
                 UPDATE NguoiDung
                 SET TrangThai = CASE WHEN TrangThai='Khoa' THEN 'HoatDong' ELSE 'Khoa' END
@@ -298,7 +283,6 @@ namespace QuanLyChiTieuThongMinh
                 cmd.ExecuteNonQuery();
 
                 AddLog("Admin đổi trạng thái người dùng ID: " + e.CommandArgument.ToString());
-
                 LoadUsers();
                 SetActivePanel("users");
             }
@@ -329,25 +313,11 @@ namespace QuanLyChiTieuThongMinh
             {
                 Open();
 
-                if (hdCategoryID.Value == "")
+                if (string.IsNullOrEmpty(hdCategoryID.Value))
                 {
                     string sql = @"
-                    INSERT INTO DanhMuc
-                    (
-                        TenDanhMuc,
-                        Loai,
-                        Icon,
-                        MoTa,
-                        TrangThai
-                    )
-                    VALUES
-                    (
-                        @Ten,
-                        @Loai,
-                        @Icon,
-                        @MoTa,
-                        @TrangThai
-                    )";
+                    INSERT INTO DanhMuc (TenDanhMuc, Loai, Icon, MoTa, TrangThai)
+                    VALUES (@Ten, @Loai, @Icon, @MoTa, @TrangThai)";
 
                     SqlCommand cmd = new SqlCommand(sql, db.conn);
                     AddCategoryParams(cmd);
@@ -359,12 +329,7 @@ namespace QuanLyChiTieuThongMinh
                 {
                     string sql = @"
                     UPDATE DanhMuc
-                    SET
-                        TenDanhMuc=@Ten,
-                        Loai=@Loai,
-                        Icon=@Icon,
-                        MoTa=@MoTa,
-                        TrangThai=@TrangThai
+                    SET TenDanhMuc=@Ten, Loai=@Loai, Icon=@Icon, MoTa=@MoTa, TrangThai=@TrangThai
                     WHERE MaDM=@ID";
 
                     SqlCommand cmd = new SqlCommand(sql, db.conn);
@@ -386,10 +351,9 @@ namespace QuanLyChiTieuThongMinh
         void AddCategoryParams(SqlCommand cmd)
         {
             string icon = txtCategoryIcon.Text.Trim();
-
-            if (icon == "")
+            if (string.IsNullOrEmpty(icon))
             {
-                icon = CategoryIconHelper.GetIcon(txtCategoryName.Text.Trim());
+                icon = "category";
             }
 
             cmd.Parameters.AddWithValue("@Ten", txtCategoryName.Text.Trim());
@@ -404,14 +368,11 @@ namespace QuanLyChiTieuThongMinh
             try
             {
                 Open();
-
                 string sql = "SELECT * FROM DanhMuc WHERE MaDM=@ID";
-
                 SqlCommand cmd = new SqlCommand(sql, db.conn);
                 cmd.Parameters.AddWithValue("@ID", e.CommandArgument.ToString());
 
                 SqlDataReader rd = cmd.ExecuteReader();
-
                 if (rd.Read())
                 {
                     hdCategoryID.Value = rd["MaDM"].ToString();
@@ -421,7 +382,6 @@ namespace QuanLyChiTieuThongMinh
                     txtCategoryDesc.Text = rd["MoTa"].ToString();
                     ddlCategoryStatus.SelectedValue = rd["TrangThai"].ToString();
                 }
-
                 rd.Close();
                 SetActivePanel("categories");
             }
@@ -433,13 +393,11 @@ namespace QuanLyChiTieuThongMinh
             try
             {
                 Open();
-
                 string checkSql = "SELECT COUNT(*) FROM GiaoDich WHERE MaDM=@ID";
                 SqlCommand check = new SqlCommand(checkSql, db.conn);
                 check.Parameters.AddWithValue("@ID", e.CommandArgument.ToString());
 
                 int exists = Convert.ToInt32(check.ExecuteScalar());
-
                 if (exists > 0)
                 {
                     Alert("Danh mục đã có giao dịch, không thể xóa.");
@@ -448,13 +406,11 @@ namespace QuanLyChiTieuThongMinh
                 }
 
                 string sql = "DELETE FROM DanhMuc WHERE MaDM=@ID";
-
                 SqlCommand cmd = new SqlCommand(sql, db.conn);
                 cmd.Parameters.AddWithValue("@ID", e.CommandArgument.ToString());
                 cmd.ExecuteNonQuery();
 
                 AddLog("Admin xóa danh mục ID: " + e.CommandArgument.ToString());
-
                 LoadCategories();
                 SetActivePanel("categories");
             }
@@ -492,24 +448,8 @@ namespace QuanLyChiTieuThongMinh
                     + "Thời gian tạo: " + DateTime.Now.ToString("dd/MM/yyyy HH:mm");
 
                 string sql = @"
-                INSERT INTO HoTro
-                (
-                    MaND,
-                    NoiDung,
-                    TongNguoiDung,
-                    TongGiaoDich,
-                    TongThu,
-                    TongChi
-                )
-                VALUES
-                (
-                    @MaND,
-                    @NoiDung,
-                    @TongNguoiDung,
-                    @TongGiaoDich,
-                    @TongThu,
-                    @TongChi
-                )";
+                INSERT INTO HoTro (MaND, NoiDung, TongNguoiDung, TongGiaoDich, TongThu, TongChi)
+                VALUES (@MaND, @NoiDung, @TongNguoiDung, @TongGiaoDich, @TongThu, @TongChi)";
 
                 SqlCommand cmd = new SqlCommand(sql, db.conn);
                 cmd.Parameters.AddWithValue("@MaND", Session["MaND"]);
@@ -521,7 +461,6 @@ namespace QuanLyChiTieuThongMinh
                 cmd.ExecuteNonQuery();
 
                 ltReport.Text = content.Replace("\n", "<br/>");
-
                 AddLog("Admin tạo báo cáo hệ thống");
 
                 LoadReports();
@@ -533,18 +472,7 @@ namespace QuanLyChiTieuThongMinh
 
         void AddLog(string action)
         {
-            string sql = @"
-            INSERT INTO LichSu
-            (
-                MaND,
-                HanhDong
-            )
-            VALUES
-            (
-                @MaND,
-                @HanhDong
-            )";
-
+            string sql = "INSERT INTO LichSu (MaND, HanhDong) VALUES (@MaND, @HanhDong)";
             SqlCommand cmd = new SqlCommand(sql, db.conn);
             cmd.Parameters.AddWithValue("@MaND", Session["MaND"]);
             cmd.Parameters.AddWithValue("@HanhDong", action);
